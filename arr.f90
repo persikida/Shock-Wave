@@ -1,22 +1,22 @@
 program SHOCK_WAVE_S_F
     use mpi
     implicit none
-    ! РАЗНОСТИ ВВЕРХ ПО ПОТОКУ НА ТРЕХ ТОЧКАХ
-    ! В точках X(0),X(1),X(MX-1),X(MX) граничные значения функций
-    ! Равномерные сетки (обе)
+    ! DIFFERENCE UP FLOW ON THREE POINTS
+    ! In points X(0),X(1),X(MX-1),X(MX) boundary values of function
+    ! Uniform grids (both)
     integer ierr, r, g, id_p, id_z, np, nr, dn, tag, xxx
     integer, parameter:: K=selected_real_kind(14,70)
     real(K),parameter:: S2PI=2.506628274631_K, C23=2._K/3.
     integer,dimension(1):: IM
-    integer,dimension(4):: LB  ! индексы граничных точек
+    integer,dimension(4):: LB  ! boundary point indices
     real(K),dimension(:),allocatable:: D,U,Tt,Tr,T,TET,pXX,fX,omX, D_
-    real(K),dimension(4):: DB,UB,TtB,TrB         !  значения на границах
+    real(K),dimension(4):: DB,UB,TtB,TrB         !  boundary values
     real(K),dimension(:),allocatable:: V,CV, tau, AB,TtR,TrR,Q3,Q4 ! V=abs(Ksi)
     real(K),dimension(:,:),allocatable:: FM5,FP5,FE5,FM7,FP7,FE7,     & ! Fn,Fp,Fom
             &  RM5,RP5,RE5,RM7,RP7,RE7,    & ! (F+)n,p,om
             &  E5,E7                       ! FMn+
     real(K),dimension(:,:),allocatable:: C5,C7, W5,W7, QP,QF,QT  
-        ! C - тепл. ск. со знаком; W- комплексы H в F+
+        ! C - thermal speed. with sign; W- complex H in F+
     real(K) GAM,CM,ttp,s,Z,Tkp,HX,HT,HV,H0,H1,H2, EPS,G53,G53G,G32, Q0 ! G53G=Kappa
     real(K) kP,kF,kTET
     !nzn = 50
@@ -27,7 +27,7 @@ program SHOCK_WAVE_S_F
     call MPI_Comm_size(MPI_COMM_WORLD, np, ierr )
     call OPEN_ALLOC_READ_PREP
     !-----------------------------------------------------------------------------
-    !---------------------- Итерационный цикл ------------------------------------
+    !---------------------- Iteration Loop  --------------------------------------
     !-----------------------------------------------------------------------------
     !call MPI_Barrier(MPI_COMM_WORLD, ierr)
     if(id_p == 0) then
@@ -43,14 +43,14 @@ program SHOCK_WAVE_S_F
         end do
     end if MPI_X
     ITER_CYCLE: do ITER=1,ITERMAX
-    !############ Функция FMn+ по всему полю ######################################
+    !############ FMn+ -function across the field #############################
     TtR=T+G53*kTET*TET; TrR=T-G32*kTET*TET    ! Tt+ & Tr+
     QP=spread(D/S2PI/sqrt(TtR),1,M1);      QT=spread(2.*TtR,1,M1)
     C5=spread(V,2,M1X)-spread(U,1,M1)
     C7=-spread(V,2,M1X)-spread(U,1,M1)
     QF=exp(C5**2/QT);        E5=QP/QF
     QF=exp(C7**2/QT);        E7=QP/QF
-    !############ F+ -функция по всему полю #######################################
+    !############ F+ -function across the field ###############################
     QT=spread(TtR,1,M1)
     QP=0.5*spread(kP*pXX/D/TtR,1,M1);   QF=0.2*spread(kF*fX/D/TtR**2,1,M1)
     W5=C5**2/QT;                        W7=C7**2/QT
@@ -61,7 +61,7 @@ program SHOCK_WAVE_S_F
         QT=spread(TrR,1,M1); QF=spread(kP*omX/D/TtR/TrR,1,M1)
         RE5=QT*(G53G*RM5+E5*QF*C5);          RE7=QT*(G53G*RM7+E7*QF*C7)
     end select
-    !################ F-функция во всех точках внутренней области #################
+    !################ F-function in all points of the inner area ##############
     Q3=HT/tau
     CYCLE_X_UP: do I=2,MX2
             AB=1._K+H0*V+Q3(I)
@@ -86,7 +86,7 @@ program SHOCK_WAVE_S_F
             FE7(:,I)=(FE7(:,I)+Q3(I)*RE7(:,I)+V*(H1*FE7(:,I+1)-H2*FE7(:,I+2)))/AB             
         end select
     end do  CYCLE_X_DOWN
-    !############ Макропараметры по всему полю ####################################
+    !############ Macroparameters throughout the field #########################
     D=sum((FM5+FM7)*spread(CV,2,M1X),dim=1);   D(LB)=DB
     U=sum((FM5-FM7)*spread(CV*V,2,M1X),dim=1)/D;  U(LB)=UB
     Tt=sum((C5**2*FM5+FP5+C7**2*FM7+FP7)*spread(CV,2,M1X),dim=1)/3./D;  Tt(LB)=TtB
@@ -100,10 +100,10 @@ program SHOCK_WAVE_S_F
             Tr=Tt; omX=0.
     end select
     tau=ttp*Tt**(s-1.)/D;  TET=Tt-Tr; T=G32*Tt+G53*Tr
-    !############ Сходимость ######################################################
+    !############ Convergence ##################################################
     EPS=maxval(abs(D-D_)/D)
     D_=D
-    !###################### Оперативная печать ####################################
+    !###################### Prompt printing ####################################
     if((ITER/ITER_PRINT)*ITER_PRINT==ITER) then
     IM=maxloc(abs(U(3:MX2)-U(2:MX3)))
     I=IM(1)+1
@@ -130,7 +130,7 @@ contains
         1 format(3/, 2(1X,I7,/),/, 2(1X,F7.6,/),/, 4(1X,F7.6,/),/, 1X,I7,/,2(1X,F7.6,/),&
                                             & /,2(1X,I7,/))
         read(2,err=20) MV
-        !--------------------- Служебные константы ------------------------------------
+        !--------------------- Service Constants ------------------------------------
         MX1=MX-1;   MX2=MX-2;   MX3=MX-3;   M1X=MX+1;  M1=MV+1
         LB=(/0,1,MX1,MX/)
         !------------------------------------------------------------------------------
@@ -148,7 +148,7 @@ contains
         read(2,err=20) V,CV,H0,H1,H2
         read(3,err=30) FM5,FP5,FE5,FM7,FP7,FE7,  D,U,Tt,Tr,T,TET,pXX,fX,omX
         close(1); close(2)
-        !------------------------ Физические константы --------------------------------
+        !------------------------ Phyisical Contants --------------------------------
         G53=(5._K-3.*GAM)/2.; G53G=G53/(GAM-1.); G32=1.5*(GAM-1.)
         if(ttp<0.001_K)  ttp=(7._K-2.*s)*(5._K-2.*s)/30.
         if(Z<0.001_K) then; write(*,*) 'Z=0 ввводить нельзя'; stop 1000; end if
@@ -166,7 +166,7 @@ contains
         30 write(*,*)'ERROR WRITE FIELDS.OUT';  stop 3
     end subroutine OPEN_ALLOC_READ_PREP
     subroutine WRITE_DEALL_CLOSE
-        ! Вывод данных в бесформатный файл
+        ! Data output to unformat file
         rewind 3
         write(3,err=40)  FM5,FP5,FE5,FM7,FP7,FE7,  D,U,Tt,Tr,T,TET,pXX,fX,omX
         close(3)  
